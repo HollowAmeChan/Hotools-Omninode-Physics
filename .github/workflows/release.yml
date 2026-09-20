@@ -5,6 +5,13 @@ name: Release Extension ZIP
 #
 # 两个 ZIP 分别对应 Blender 4.5（Python 3.11）与 Blender 5.x（Python 3.13）：
 # 原生 pyd 的 ABI 不同，不能混用。
+#
+# 说明：仓库只提交源码，native/runtime/ 是构建产物（已在 .gitignore 中），
+# 因此 CI 无法直接产出可用的 pyd；CI 只自动产出源码包，带 pyd 的安装包
+# 在本地构建后附到同一个 release 上：
+#   PhysicsWorld\native\build.bat all
+#   python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist/ext-py311.zip
+#   python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist/ext-py313.zip
 
 on:
   push:
@@ -17,7 +24,10 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    # 明确版本号，避免 ubuntu-latest 指向正在滚动切换的镜像。
+    runs-on: ubuntu-24.04
+    # 纯源码打包只要几秒；给足余量的同时保证不会像之前那样无限悬在 in_progress。
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -26,30 +36,31 @@ jobs:
       - name: Verify source-only package builds
         run: |
           set -euo pipefail
-          # 先验证打包工具本身可跑（不需要原生 pyd）
+          python -V
+          echo "tracked files: $(git ls-files | wc -l)"
           python PhysicsWorld/tools/build_extension_zip.py \
             --source-only \
             --output _dist/HoTools-Omninode-Physics-src.zip
 
+      - name: Upload source-only package as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HoTools-Omninode-Physics-src
+          path: _dist/HoTools-Omninode-Physics-src.zip
+          if-no-files-found: error
+
+      # 只有打 tag 时才建 release：workflow_dispatch 在 main 上手动跑时
+      # GITHUB_REF_NAME 是分支名，"gh release create main" 会得到一个莫名其妙的 release。
       - name: Publish release with the built packages
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
-
-          VERSION="${GITHUB_REF_NAME:-$(date +'%Y%m%d-%H%M%S')}"
+          VERSION="$GITHUB_REF_NAME"
           SOURCE_ZIP="_dist/HoTools-Omninode-Physics-${VERSION}-src.zip"
-
-          # 带原生 pyd 的包需要在 Windows + 对应 Blender Python 下本地构建后
-          # 作为 release asset 上传：
-          #   PhysicsWorld\native\build.bat all
-          #   python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist/...-py311.zip
-          #   python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist/...-py313.zip
-          #
-          # 说明：仓库只提交源码，native/runtime/ 是构建产物（已在 .gitignore 中），
-          # 因此 CI 无法直接产出可用的 pyd；这里只自动发布源码包，二进制包由本地构建
-          # 后手动附到同一个 release 上。
+          cp _dist/HoTools-Omninode-Physics-src.zip "$SOURCE_ZIP"
           gh release create "$VERSION" "$SOURCE_ZIP" \
             --title "HoTools-Omninode-Physics $VERSION" \
             --notes "源码包由 CI 自动构建；带原生模块的安装包（-py311 / -py313）由本地构建后附上。" \
-            --target "$GITHUB_SHA" || true
+            --target "$GITHUB_SHA"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

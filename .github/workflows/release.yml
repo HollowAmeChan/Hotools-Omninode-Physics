@@ -65,12 +65,22 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $root = Join-Path $env:RUNNER_TOOL_CACHE "Python"
-          $p311 = Get-ChildItem $root -Directory | Where-Object { $_.Name -like "3.11*" } | Select-Object -First 1
-          $p313 = Get-ChildItem $root -Directory | Where-Object { $_.Name -like "3.13*" } | Select-Object -First 1
-          if (-not $p311 -or -not $p313) { throw "未在 $root 找到 3.11 / 3.13 解释器" }
-          $exe311 = Join-Path $p311.FullName "python.exe"
-          $exe313 = Join-Path $p313.FullName "python.exe"
+          # 用 py launcher 枚举已安装解释器（setup-python 装完后 py -0p 能看到），
+          # 不依赖 RUNNER_TOOL_CACHE —— 它在 windows runner 上并不存在。
+          $listing = & py -0p 2>&1 | Out-String
+          Write-Host $listing
+          $map = @{}
+          foreach ($line in ($listing -split "`r?`n")) {
+            if ($line -match '^\s*-V:(\d+\.\d+)\s+\*?\s*(.+python\.exe)\s*$') {
+              $map[$Matches[1]] = $Matches[2].Trim()
+            }
+          }
+          # py -0p 给的是短版本号（3.11 / 3.13），取前缀匹配。
+          $exe311 = ($map.Keys | Where-Object { $_ -like "3.11*" } | ForEach-Object { $map[$_] } | Select-Object -First 1)
+          $exe313 = ($map.Keys | Where-Object { $_ -like "3.13*" } | ForEach-Object { $map[$_] } | Select-Object -First 1)
+          if (-not $exe311 -or -not $exe313) {
+            throw "未找到 3.11 / 3.13 解释器。py -0p 输出：`n$listing"
+          }
           & $exe311 -c "import sys; print('py311:', sys.version)"
           & $exe313 -c "import sys; print('py313:', sys.version)"
           "exe311=$exe311" >> $env:GITHUB_OUTPUT

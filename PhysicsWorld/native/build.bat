@@ -80,27 +80,31 @@ if /I "%MODULE%"=="physics" set "CMAKE_TARGET=hotools_physics"
 if /I "%MODULE%"=="jolt" set "CMAKE_TARGET=hotools_jolt"
 if not defined CMAKE_TARGET if /I not "%MODULE%"=="all" goto usage
 
+rem 构建目录默认放仓库外：插件树本身路径就很长，再叠 build\vs2022-py313-physics
+rem 会让 MSVC 的编译器探测 / .tlog 路径超过上限直接失败
+rem （表现为 "No CMAKE_CXX_COMPILER could be found" 或 FTK1011）。
+if not defined HOTOOLS_BUILD_ROOT set "HOTOOLS_BUILD_ROOT=%~d0\HoTools-build\ext"
 set "CONFIG_PRESET_311=vs2022-py311"
 set "BUILD_PRESET_311=vs2022-py311-release"
-set "BUILD_DIR_311=%SOURCE_DIR%\build\vs2022-py311"
+set "BUILD_DIR_311=%HOTOOLS_BUILD_ROOT%\py311"
 set "CONFIG_PRESET_313=vs2022-py313"
 set "BUILD_PRESET_313=vs2022-py313-release"
-set "BUILD_DIR_313=%SOURCE_DIR%\build\vs2022-py313"
+set "BUILD_DIR_313=%HOTOOLS_BUILD_ROOT%\py313"
 if /I "%MODULE%"=="physics" (
     set "CONFIG_PRESET_311=vs2022-py311-physics"
     set "BUILD_PRESET_311=vs2022-py311-physics-release"
-    set "BUILD_DIR_311=%SOURCE_DIR%\build\vs2022-py311-physics"
+    set "BUILD_DIR_311=%HOTOOLS_BUILD_ROOT%\py311-physics"
     set "CONFIG_PRESET_313=vs2022-py313-physics"
     set "BUILD_PRESET_313=vs2022-py313-physics-release"
-    set "BUILD_DIR_313=%SOURCE_DIR%\build\vs2022-py313-physics"
+    set "BUILD_DIR_313=%HOTOOLS_BUILD_ROOT%\py313-physics"
 )
 if /I "%MODULE%"=="jolt" (
     set "CONFIG_PRESET_311=vs2022-py311-jolt"
     set "BUILD_PRESET_311=vs2022-py311-jolt-release"
-    set "BUILD_DIR_311=%SOURCE_DIR%\build\vs2022-py311-jolt"
+    set "BUILD_DIR_311=%HOTOOLS_BUILD_ROOT%\py311-jolt"
     set "CONFIG_PRESET_313=vs2022-py313-jolt"
     set "BUILD_PRESET_313=vs2022-py313-jolt-release"
-    set "BUILD_DIR_313=%SOURCE_DIR%\build\vs2022-py313-jolt"
+    set "BUILD_DIR_313=%HOTOOLS_BUILD_ROOT%\py313-jolt"
 )
 
 pushd "%SOURCE_DIR%" >nul
@@ -111,6 +115,10 @@ if errorlevel 1 (
 
 call :find_cmake
 if errorlevel 1 goto fail
+
+rem Visual Studio 生成器需要 MSVC 环境（INCLUDE/LIB/PATH）。普通的 cmd / PowerShell
+rem 会话里没有，CMake 会报 "No CMAKE_CXX_COMPILER could be found"，因此这里自举。
+if not defined VSCMD_VER call :enter_vs_env
 
 echo.
 echo ========================================
@@ -185,9 +193,9 @@ if defined HOTOOLS_FETCH_CACHE echo [%LABEL%] Fetch cache:      %HOTOOLS_FETCH_C
 
 echo [%LABEL%] Refreshing preset cache and runtime output path...
 if defined HOTOOLS_FETCH_CACHE (
-    "%CMAKE_EXE%" --preset "%CONFIG_PRESET%" -S "%SOURCE_DIR%" -DHOTOOLS_PHYSICS_FETCH_CACHE="%HOTOOLS_FETCH_CACHE%"
+    "%CMAKE_EXE%" --preset "%CONFIG_PRESET%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -DHOTOOLS_PHYSICS_FETCH_CACHE="%HOTOOLS_FETCH_CACHE%"
 ) else (
-    "%CMAKE_EXE%" --preset "%CONFIG_PRESET%" -S "%SOURCE_DIR%"
+    "%CMAKE_EXE%" --preset "%CONFIG_PRESET%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%"
 )
 if errorlevel 1 (
     echo [ERROR] %LABEL% configure failed.
@@ -206,16 +214,16 @@ if "%CHECK_NATIVE_LAYOUT%"=="1" (
 if defined BUILD_TARGET (
     if "%REBUILD_NATIVE_LAYOUT%"=="1" (
         echo [%LABEL%] Shared Field/MC2 native layout changed; rebuilding hotools_physics only.
-        "%CMAKE_EXE%" --build --preset "%BUILD_PRESET%" --target "%BUILD_TARGET%" --clean-first --parallel
+        "%CMAKE_EXE%" --build "%BUILD_DIR%" --config Release --target "%BUILD_TARGET%" --clean-first --parallel
     ) else (
-        "%CMAKE_EXE%" --build --preset "%BUILD_PRESET%" --target "%BUILD_TARGET%" --parallel
+        "%CMAKE_EXE%" --build "%BUILD_DIR%" --config Release --target "%BUILD_TARGET%" --parallel
     )
 ) else (
     if "%REBUILD_NATIVE_LAYOUT%"=="1" (
         echo [%LABEL%] Shared Field/MC2 native layout changed; clean rebuilding all modules.
-        "%CMAKE_EXE%" --build --preset "%BUILD_PRESET%" --clean-first --parallel
+        "%CMAKE_EXE%" --build "%BUILD_DIR%" --config Release --clean-first --parallel
     ) else (
-        "%CMAKE_EXE%" --build --preset "%BUILD_PRESET%" --parallel
+        "%CMAKE_EXE%" --build "%BUILD_DIR%" --config Release --parallel
     )
 )
 if errorlevel 1 (
@@ -242,6 +250,39 @@ if /I "%TARGET%"=="311" (
 echo.
 popd >nul
 endlocal
+exit /b 0
+
+:enter_vs_env
+if defined VSDEVCMD (
+    if exist "%VSDEVCMD%" (
+        echo [env] Loading Visual Studio environment via VSDEVCMD
+        call "%VSDEVCMD%" -arch=amd64 -host_arch=amd64
+        exit /b 0
+    )
+)
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE%" (
+    for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find VC\Auxiliary\Build\vcvars64.bat`) do (
+        if not defined VC_VARS_BAT set "VC_VARS_BAT=%%I"
+    )
+)
+if not defined VC_VARS_BAT (
+    for %%D in (
+        "D:\Microsoft Visual Studio\2022\Community"
+        "C:\Program Files\Microsoft Visual Studio\2022\Community"
+        "C:\Program Files\Microsoft Visual Studio\2022\Professional"
+        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+        "C:\Program Files\Microsoft Visual Studio\2022\BuildTools"
+    ) do (
+        if not defined VC_VARS_BAT if exist "%%~D\VC\Auxiliary\Build\vcvars64.bat" set "VC_VARS_BAT=%%~D\VC\Auxiliary\Build\vcvars64.bat"
+    )
+)
+if not defined VC_VARS_BAT (
+    echo [WARN] Could not find vcvars64.bat; relying on CMake to locate the MSVC toolchain.
+    exit /b 0
+)
+echo [env] Loading Visual Studio environment: %VC_VARS_BAT%
+call "%VC_VARS_BAT%"
 exit /b 0
 
 :print_outputs

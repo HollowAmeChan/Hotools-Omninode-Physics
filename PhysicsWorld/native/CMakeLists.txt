@@ -29,8 +29,37 @@ get_filename_component(HOTOOLS_PHYSICS_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOL
 set(HOTOOLS_RUNTIME_DIR "${HOTOOLS_PHYSICS_ROOT}/native/runtime/py311" CACHE PATH "Runtime output directory (python ABI specific)")
 set(HOTOOLS_PYTHON_EXECUTABLE "" CACHE FILEPATH "Blender Python executable")
 
+# CI / 其它机器：允许用环境变量指定解释器。CMakePresets 里的 Python 路径是本机默认值，
+# 在别处不存在，用环境变量覆盖即可复用同一套 preset：
+#     set HOTOOLS_PYTHON_EXECUTABLE=<python.exe>
+# 优先级：显式 -DHOTOOLS_PYTHON_EXECUTABLE=... > 环境变量 > preset 里的本机默认。
+if(NOT HOTOOLS_PYTHON_EXECUTABLE AND DEFINED ENV{HOTOOLS_PYTHON_EXECUTABLE})
+    set(HOTOOLS_PYTHON_EXECUTABLE "$ENV{HOTOOLS_PYTHON_EXECUTABLE}"
+        CACHE FILEPATH "Blender Python executable (from environment)" FORCE)
+    message(STATUS "[HoToolsPhysics] 解释器来自环境变量：${HOTOOLS_PYTHON_EXECUTABLE}")
+endif()
+
+# 默认关闭，保持 CMakePresets 里的本机 ABI 路径不变；CI / 换机器时打开：
+#     -DHOTOOLS_DERIVE_RUNTIME_DIR=ON
+# 打开后运行时输出目录由解释器推导（py311/py313），避免 py313 产物落进 py311。
+set(HOTOOLS_DERIVE_RUNTIME_DIR OFF CACHE BOOL "由解释器推导运行时输出目录")
+
 if(HOTOOLS_PYTHON_EXECUTABLE)
     set(Python3_EXECUTABLE "${HOTOOLS_PYTHON_EXECUTABLE}" CACHE FILEPATH "Python executable" FORCE)
+    if(HOTOOLS_DERIVE_RUNTIME_DIR)
+        execute_process(
+            COMMAND "${HOTOOLS_PYTHON_EXECUTABLE}" -c
+                    "import sys; print(f'py{sys.version_info[0]}{sys.version_info[1]}', end='')"
+            OUTPUT_VARIABLE _hotools_python_tag
+            RESULT_VARIABLE _hotools_python_tag_result
+        )
+        if(NOT _hotools_python_tag_result EQUAL 0 OR NOT _hotools_python_tag)
+            message(FATAL_ERROR "[HoToolsPhysics] 无法从解释器推导 ABI：${HOTOOLS_PYTHON_EXECUTABLE}")
+        endif()
+        set(HOTOOLS_RUNTIME_DIR "${HOTOOLS_PHYSICS_ROOT}/native/runtime/${_hotools_python_tag}"
+            CACHE PATH "Runtime output directory (python ABI specific)" FORCE)
+        message(STATUS "[HoToolsPhysics] 运行时输出目录：${HOTOOLS_RUNTIME_DIR}")
+    endif()
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)

@@ -1,17 +1,15 @@
 name: Auto Release Extension ZIP
 
 # 扩展仓库自己的发布线，形态对齐父仓 HoTools 的 release.yml：
-# push 到 main（或手动触发）→ 用时间戳生成版本 → 打 tag → 建 release 并附上安装包。
+# push 到 main（或手动触发）→ 用时间戳生成版本 → 打 tag → 建 release，
+# 并附上 **双版本安装包**（-py311 / -py313）与源码包。
 #
-# 与父仓的唯一区别：原生 pyd 是 Windows 构建产物、不入库，Ubuntu runner 上无法产出，
-# 因此 CI 只发**源码包**；带原生模块的安装包（-py311 / -py313）在本地构建后附到
-# 同一个 release 上：
-#   PhysicsWorld\native\build.bat all
-#   python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist\ext-py311.zip
-#   python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist\ext-py313.zip
+# Blender 4.5 用 Python 3.11，Blender 5.x 用 Python 3.13，原生 pyd 的 ABI 不同，
+# 两个包必须分别编译，不能混用。原生模块由本仓库自持（PhysicsWorld/native/ 下的
+# CMake 工程），CI 在 windows-2022 上现场编译，不再依赖本地手工构建。
 #
-# 用户在 HoTools 偏好设置 → OmniNode → "安装扩展…" 里选对应 Blender 版本的 ZIP：
-# Blender 4.5 → py311 包，Blender 5.x → py313 包（没有 pyd 的源码包只适合开发调试）。
+# 用户在 HoTools 偏好设置 → OmniNode → "安装扩展…" 里选对应 Blender 版本的包：
+# Blender 4.5 → -py311，Blender 5.x → -py313。
 
 on:
   push:
@@ -26,47 +24,127 @@ permissions:
 
 jobs:
   build-and-release:
-    # 明确版本号，避免 ubuntu-latest 指向正在滚动切换的镜像。
-    runs-on: ubuntu-24.04
-    # 纯源码打包只要几秒；给足余量，同时保证不会无限悬在 in_progress。
-    timeout-minutes: 10
+    # 原生模块需要 MSVC + CMake（windows-2022 镜像自带 VS 2022 与 CMake）。
+    runs-on: windows-2022
+    # JoltPhysics 较大、两个 ABI 都要编；给足余量但不容忍无限悬死。
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Python 3.11 (Blender 4.5)
+        uses: actions/setup-python@v5
         with:
-          # 时间戳 tag/release 要在 checkout 之后创建，避免 fetch-depth 干扰。
-          fetch-depth: 0
+          python-version: "3.11"
 
-      - name: Build source ZIP and create release
+      - name: Setup Python 3.13 (Blender 5.x)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # 依赖源码（nanobind / JoltPhysics）与增量构建树：命中缓存可省掉一次完整编译。
+      - name: Cache native dependency sources
+        uses: actions/cache@v4
+        with:
+          path: PhysicsWorld/native/.fetch-cache
+          key: native-fetch-${{ runner.os }}-nanobind2.2.0-jolt5.2.0
+
+      - name: Cache native build trees
+        uses: actions/cache@v4
+        with:
+          path: |
+            D:/hotools-build/py311
+            D:/hotools-build/py313
+          key: native-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            native-build-${{ runner.os }}-
+
+      - name: Resolve Python interpreters
+        id: py
+        shell: pwsh
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = "Stop"
+          $root = Join-Path $env:RUNNER_TOOL_CACHE "Python"
+          $p311 = Get-ChildItem $root -Directory | Where-Object { $_.Name -like "3.11*" } | Select-Object -First 1
+          $p313 = Get-ChildItem $root -Directory | Where-Object { $_.Name -like "3.13*" } | Select-Object -First 1
+          if (-not $p311 -or -not $p313) { throw "未在 $root 找到 3.11 / 3.13 解释器" }
+          $exe311 = Join-Path $p311.FullName "python.exe"
+          $exe313 = Join-Path $p313.FullName "python.exe"
+          & $exe311 -c "import sys; print('py311:', sys.version)"
+          & $exe313 -c "import sys; print('py313:', sys.version)"
+          "exe311=$exe311" >> $env:GITHUB_OUTPUT
+          "exe313=$exe313" >> $env:GITHUB_OUTPUT
 
-          # 同一个时间戳同时用于 tag、release 标题和 zip 文件名，避免互相对不上。
-          VERSION="$(date -u +'%Y%m%d-%H%M%S')"
-          RELEASE_TAG="v${VERSION}"
-          RELEASE_TITLE="HoTools-Omninode-Physics-${VERSION}"
-          SRC_ZIP="_dist/HoTools-Omninode-Physics-${VERSION}-src.zip"
+      # 构建目录放在仓库外的短路径：插件树内路径过长会触发 MSVC 的 FTK1011
+      # （无法创建 .tlog 文件跟踪日志）。
+      - name: Build hotools_physics + hotools_jolt (py311)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cmake --preset vs2022-py311 -S PhysicsWorld/native -B D:/hotools-build/py311 `
+            -DHOTOOLS_PYTHON_EXECUTABLE="${{ steps.py.outputs.exe311 }}" `
+            -DHOTOOLS_DERIVE_RUNTIME_DIR=ON
+          if ($LASTEXITCODE -ne 0) { throw "py311 configure 失败" }
+          cmake --build D:/hotools-build/py311 --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "py311 build 失败" }
 
-          python -V
-          echo "tracked files: $(git ls-files | wc -l)"
+      - name: Build hotools_physics + hotools_jolt (py313)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cmake --preset vs2022-py313 -S PhysicsWorld/native -B D:/hotools-build/py313 `
+            -DHOTOOLS_PYTHON_EXECUTABLE="${{ steps.py.outputs.exe313 }}" `
+            -DHOTOOLS_DERIVE_RUNTIME_DIR=ON
+          if ($LASTEXITCODE -ne 0) { throw "py313 configure 失败" }
+          cmake --build D:/hotools-build/py313 --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "py313 build 失败" }
 
-          # 版本戳只写进包内清单，仓库里的 extension.json 保持开发版本号。
-          python PhysicsWorld/tools/build_extension_zip.py \
-            --source-only \
-            --version "$VERSION" \
-            --output "$SRC_ZIP"
+      - name: Verify native outputs exist for both ABIs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = "PhysicsWorld/native/runtime"
+          $expected = @(
+            "$runtime/py311/hotools_physics.cp311-win_amd64.pyd",
+            "$runtime/py311/hotools_jolt.cp311-win_amd64.pyd",
+            "$runtime/py313/hotools_physics.cp313-win_amd64.pyd",
+            "$runtime/py313/hotools_jolt.cp313-win_amd64.pyd"
+          )
+          $missing = @($expected | Where-Object { -not (Test-Path $_) })
+          if ($missing.Count -gt 0) { throw "缺少原生产物：$($missing -join ', ')" }
+          Get-ChildItem $runtime -Recurse -File | Select-Object FullName, Length | Format-Table -AutoSize
 
-          gh release create "$RELEASE_TAG" "$SRC_ZIP" \
-            --target "$GITHUB_SHA" \
-            --title "$RELEASE_TITLE" \
-            --notes "源码包由 CI 自动构建（版本 ${VERSION}）。带原生模块的安装包 HoTools-Omninode-Physics-${VERSION}-py311.zip / -py313.zip 由本地构建后附到本 release；用户应下载与自己的 Blender 版本匹配的 -py311 / -py313 包。"
+      - name: Build packages and create release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # 同一个时间戳同时用于 tag、release 标题与三个包名，避免互相对不上。
+          $VERSION = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+          $TAG = "v$VERSION"
+          $TITLE = "HoTools-Omninode-Physics-$VERSION"
+          $SRC = "_dist/HoTools-Omninode-Physics-$VERSION-src.zip"
+          $P311 = "_dist/HoTools-Omninode-Physics-$VERSION-py311.zip"
+          $P313 = "_dist/HoTools-Omninode-Physics-$VERSION-py313.zip"
+
+          python PhysicsWorld/tools/build_extension_zip.py --source-only --version $VERSION --output $SRC
+          if ($LASTEXITCODE -ne 0) { throw "源码包构建失败" }
+          python PhysicsWorld/tools/build_extension_zip.py --abi py311 --version $VERSION --output $P311
+          if ($LASTEXITCODE -ne 0) { throw "py311 包构建失败" }
+          python PhysicsWorld/tools/build_extension_zip.py --abi py313 --version $VERSION --output $P313
+          if ($LASTEXITCODE -ne 0) { throw "py313 包构建失败" }
+
+          gh release create $TAG $P311 $P313 $SRC `
+            --target $env:GITHUB_SHA `
+            --title $TITLE `
+            --notes "Blender 4.5 请下载 -py311 包；Blender 5.x 请下载 -py313 包。-src 为纯源码包（不含原生模块，仅供开发调试）。"
+          if ($LASTEXITCODE -ne 0) { throw "创建 release 失败" }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload source ZIP as workflow artifact
+      - name: Upload packages as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HoTools-Omninode-Physics-src
-          path: _dist/*-src.zip
+          name: HoTools-Omninode-Physics-${{ github.run_number }}
+          path: _dist/*.zip
           if-no-files-found: error

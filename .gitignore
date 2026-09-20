@@ -21,7 +21,8 @@ junit*.xml
 !rigid/test/assets/jolt_fracture_user_project.blend
 *~
 
-# Unity oracle 的生成目录（工程源码保留，缓存与构建产物忽略）
+# Unity oracle 的生成目录（工程源码保留，缓存与构建产物忽略）。
+# 实测 Library/ 约 960 MB，且内含绝对路径，必须排除。
 tools/mc2_unity_oracle/Library/
 tools/mc2_unity_oracle/Logs/
 tools/mc2_unity_oracle/Temp/

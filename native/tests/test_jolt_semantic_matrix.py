@@ -12,8 +12,9 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PHYSICS_ROOT = ROOT.parent  # 扩展仓库根（owns mc2/, rigid/）
 TEST_ROOT = (
-    ROOT / "OmniNode" / "PhysicsWorld" / "rigid" / "test"
+    PHYSICS_ROOT / "rigid" / "test"
 )
 if str(TEST_ROOT) not in sys.path:
     sys.path.insert(0, str(TEST_ROOT))

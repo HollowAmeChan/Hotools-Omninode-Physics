@@ -21,11 +21,10 @@ sys.path.insert(0, os.environ.get(
 import hotools_physics  # noqa: E402
 
 
-# ROOT 指向本工程的 native/ 目录；产物的 runtime/<abi> 与 Python 包源码都从那里解析。
-# parents[2] 再上两级即 HoTools 插件根（native → PhysicsWorld → OmniNode → HoTools）。
-PLUGIN_ROOT = ROOT.parents[2]
-FIELD_ROOT = PLUGIN_ROOT / "OmniNode" / "PhysicsWorld" / "field"
-PHYSICS_WORLD_ROOT = FIELD_ROOT.parent
+# ROOT 指向本工程的 native/ 目录（owns runtime/<abi>/）；
+# PHYSICS_WORLD_ROOT 才是扩展仓库根，Python 包源码（field/ 等）在它下面。
+PHYSICS_WORLD_ROOT = ROOT.parent
+FIELD_ROOT = PHYSICS_WORLD_ROOT / "field"
 PACKAGE_ROOT = "hotools_field_runtime_native_test"
 
 

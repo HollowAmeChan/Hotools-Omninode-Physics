@@ -17,9 +17,9 @@ FUNCTION = PHYSICS_WORLD.parent / "Function"
 NODETREE = FUNCTION.parent
 OMNINODE = NODETREE
 HOTOOLS = OMNINODE.parent
-NATIVE_PACKAGE = HOTOOLS / "_Lib" / (
+NATIVE_PACKAGE = PHYSICS_WORLD / "native" / "runtime" / (
     "py313" if sys.version_info >= (3, 13) else "py311"
-) / "HotoolsPackage"
+)
 sys.path.insert(0, str(NATIVE_PACKAGE))
 
 for package_name, package_path in (
@@ -35,7 +35,9 @@ for package_name, package_path in (
     sys.modules.setdefault(package_name, module)
 
 center = importlib.import_module("HoTools.OmniNode.PhysicsWorld.mc2.center_state")
-import hotools_native  # noqa: E402
+# 物理原生模块已独立为 hotools_physics：父仓 _Lib 里的 hotools_native 现在只含
+# PropertyCurve 采样内核，不再提供物理符号。
+import hotools_physics  # noqa: E402
 
 
 FIXTURES = tuple(
@@ -265,7 +267,7 @@ def _assert_center_frame_shift_fixture(path: Path) -> None:
         values.get("initial_scale", (1.0, 1.0, 1.0)),
         dtype=np.float32,
     )
-    native_result = hotools_native.mc2_center_frame_shift_v1_evaluate(
+    native_result = hotools_physics.mc2_center_frame_shift_v1_evaluate(
         np.ascontiguousarray(old_component),
         np.ascontiguousarray(component),
         np.ascontiguousarray(old_rotation),

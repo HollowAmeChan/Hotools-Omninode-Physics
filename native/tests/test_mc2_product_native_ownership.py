@@ -6,14 +6,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-NATIVE_SRC = ROOT / "_native" / "src"
+PHYSICS_ROOT = ROOT.parent  # 扩展仓库根（owns mc2/, rigid/）
+PLUGIN_ROOT = ROOT.parents[2]
+# 物理原生源码现位于本扩展 native/src（mc2 子目录），枢纽文件为 hotools_physics.cpp
+NATIVE_SRC = ROOT / "src"
+PARENT_NATIVE_SRC = PLUGIN_ROOT / "_native" / "src"
 MC2_PYTHON = (
-    ROOT
-    / "OmniNode"
-    / "NodeTree"
-    / "Function"
-    / "physicsWorld"
-    / "mc2"
+    PHYSICS_ROOT / "mc2"
 )
 
 
@@ -35,7 +34,7 @@ def test_v0_native_owner_sources_are_deleted() -> None:
 
 
 def test_whole_domain_self_has_no_v0_owner_dependency() -> None:
-    source = _source(NATIVE_SRC / "mc2_whole_domain_self.cpp")
+    source = _source(NATIVE_SRC / "mc2" / "mc2_whole_domain_self.cpp")
     assert "WholeDomainSelfState" in source
     for forbidden in (
         "mc2_context_internal.hpp",
@@ -47,7 +46,7 @@ def test_whole_domain_self_has_no_v0_owner_dependency() -> None:
 
 
 def test_frame_orientations_have_no_v0_owner_dependency() -> None:
-    source = _source(NATIVE_SRC / "mc2_frame_orientations.cpp")
+    source = _source(NATIVE_SRC / "mc2" / "mc2_frame_orientations.cpp")
     for forbidden in (
         "mc2_context_internal.hpp",
         "mc2_context_helpers.hpp",

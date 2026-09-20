@@ -7,12 +7,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PHYSICS_ROOT = ROOT.parent  # 扩展仓库根（owns mc2/, rigid/）
 BENCHMARK_PATH = (
-    ROOT
-    / "OmniNode"
-    / "PhysicsWorld"
-    / "rigid"
-    / "test"
+    PHYSICS_ROOT / "rigid" / "test"
     / "benchmark_blender_rigid.py"
 )
 

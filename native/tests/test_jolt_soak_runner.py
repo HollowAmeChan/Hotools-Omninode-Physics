@@ -10,8 +10,9 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PHYSICS_ROOT = ROOT.parent  # 扩展仓库根（owns mc2/, rigid/）
 RUNNER = (
-    ROOT / "OmniNode" / "PhysicsWorld"
+    PHYSICS_ROOT
     / "rigid" / "test" / "run_native_soak.py"
 )
 

@@ -95,9 +95,16 @@ python PhysicsWorld\tools\build_extension_zip.py --source-only --output _dist\ex
 ## 测试
 
 ```bat
+:: 打包工具冒烟测试（纯标准库，秒级，不需要 Blender 与原生 pyd）
+python PhysicsWorld\tools\test_build_extension_zip.py
+
 :: 物理原生内核测试（需先构建出 PhysicsWorld/native/runtime/<abi>/ 下的 pyd）
 python PhysicsWorld\native\tests\run_all.py
 
 :: Blender 内的物理回归测试
 blender.exe -b --factory-startup --python PhysicsWorld\test\<case>.py
 ```
+
+> 打包器只收集仓库内文件，`_dist/`（含上一次的 ZIP）、`native/runtime/`、
+> `__pycache__`、Unity `Library/` 等一律排除；CI 产出的源码包与 `git ls-files`
+> 的可见文件集合一致。原生 `.pyd` 属构建产物，任何情况下都不入库。

@@ -36,6 +36,7 @@ EXCLUDED_DIR_NAMES = {
     ".git",
     "__pycache__",
     ".fetch-cache",
+    "_dist",  # 打包输出目录：否则第二次打包会把上一次的 ZIP 打进包里
     "build",
     "$Recycle.Bin",
     "obj",
@@ -60,9 +61,11 @@ def load_manifest(repo_root: Path) -> dict:
     return data
 
 
-def iter_files(repo_root: Path, abi: str | None, source_only: bool):
+def iter_files(repo_root: Path, abi: str | None, source_only: bool, output: Path | None = None):
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file():
+            continue
+        if output is not None and path == output:
             continue
         relative = PurePosixPath(path.relative_to(repo_root).as_posix())
         if any(part in EXCLUDED_DIR_NAMES for part in relative.parts):
@@ -109,7 +112,7 @@ def build(
     with zipfile.ZipFile(
         output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
     ) as archive:
-        for source, relative in iter_files(repo_root, abi, source_only):
+        for source, relative in iter_files(repo_root, abi, source_only, output):
             # 清单里的版本号写进包名无关紧要，保持原样即可。
             archive.write(source, relative.as_posix())
             members.append(relative.as_posix())

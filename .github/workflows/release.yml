@@ -1,24 +1,26 @@
-name: Release Extension ZIP
+name: Auto Release Extension ZIP
 
-# 扩展仓库自己的发布线。父仓发布包**不含**扩展，扩展一律通过这里的产物安装：
-# 用户在 HoTools 偏好设置 → OmniNode → "安装扩展…" 里选对应的 ZIP 即可。
+# 扩展仓库自己的发布线，形态对齐父仓 HoTools 的 release.yml：
+# push 到 main（或手动触发）→ 用时间戳生成版本 → 打 tag → 建 release 并附上安装包。
 #
-# 两个 ZIP 分别对应 Blender 4.5（Python 3.11）与 Blender 5.x（Python 3.13）：
-# 原生 pyd 的 ABI 不同，不能混用。
-#
-# 说明：仓库只提交源码，native/runtime/ 是构建产物（已在 .gitignore 中），
-# 因此 CI 无法直接产出可用的 pyd；CI 只自动产出源码包，带 pyd 的安装包
-# 在本地构建后附到同一个 release 上：
+# 与父仓的唯一区别：原生 pyd 是 Windows 构建产物、不入库，Ubuntu runner 上无法产出，
+# 因此 CI 只发**源码包**；带原生模块的安装包（-py311 / -py313）在本地构建后附到
+# 同一个 release 上：
 #   PhysicsWorld\native\build.bat all
-#   python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist/ext-py311.zip
-#   python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist/ext-py313.zip
+#   python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist\ext-py311.zip
+#   python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist\ext-py313.zip
+#
+# 用户在 HoTools 偏好设置 → OmniNode → "安装扩展…" 里选对应 Blender 版本的 ZIP：
+# Blender 4.5 → py311 包，Blender 5.x → py313 包（没有 pyd 的源码包只适合开发调试）。
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  # 手动触发入口，方便只创建一次发布，不必额外 push。
   workflow_dispatch:
 
+# 创建 GitHub Release 并上传安装包需要写权限。
 permissions:
   contents: write
 
@@ -26,41 +28,45 @@ jobs:
   build-and-release:
     # 明确版本号，避免 ubuntu-latest 指向正在滚动切换的镜像。
     runs-on: ubuntu-24.04
-    # 纯源码打包只要几秒；给足余量的同时保证不会像之前那样无限悬在 in_progress。
+    # 纯源码打包只要几秒；给足余量，同时保证不会无限悬在 in_progress。
     timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 时间戳 tag/release 要在 checkout 之后创建，避免 fetch-depth 干扰。
+          fetch-depth: 0
 
-      - name: Verify source-only package builds
+      - name: Build source ZIP and create release
         run: |
           set -euo pipefail
+
+          # 同一个时间戳同时用于 tag、release 标题和 zip 文件名，避免互相对不上。
+          VERSION="$(date -u +'%Y%m%d-%H%M%S')"
+          RELEASE_TAG="v${VERSION}"
+          RELEASE_TITLE="HoTools-Omninode-Physics-${VERSION}"
+          SRC_ZIP="_dist/HoTools-Omninode-Physics-${VERSION}-src.zip"
+
           python -V
           echo "tracked files: $(git ls-files | wc -l)"
+
+          # 版本戳只写进包内清单，仓库里的 extension.json 保持开发版本号。
           python PhysicsWorld/tools/build_extension_zip.py \
             --source-only \
-            --output _dist/HoTools-Omninode-Physics-src.zip
+            --version "$VERSION" \
+            --output "$SRC_ZIP"
 
-      - name: Upload source-only package as workflow artifact
+          gh release create "$RELEASE_TAG" "$SRC_ZIP" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_TITLE" \
+            --notes "源码包由 CI 自动构建（版本 ${VERSION}）。带原生模块的安装包 HoTools-Omninode-Physics-${VERSION}-py311.zip / -py313.zip 由本地构建后附到本 release；用户应下载与自己的 Blender 版本匹配的 -py311 / -py313 包。"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload source ZIP as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: HoTools-Omninode-Physics-src
-          path: _dist/HoTools-Omninode-Physics-src.zip
+          path: _dist/*-src.zip
           if-no-files-found: error
-
-      # 只有打 tag 时才建 release：workflow_dispatch 在 main 上手动跑时
-      # GITHUB_REF_NAME 是分支名，"gh release create main" 会得到一个莫名其妙的 release。
-      - name: Publish release with the built packages
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          VERSION="$GITHUB_REF_NAME"
-          SOURCE_ZIP="_dist/HoTools-Omninode-Physics-${VERSION}-src.zip"
-          cp _dist/HoTools-Omninode-Physics-src.zip "$SOURCE_ZIP"
-          gh release create "$VERSION" "$SOURCE_ZIP" \
-            --title "HoTools-Omninode-Physics $VERSION" \
-            --notes "源码包由 CI 自动构建；带原生模块的安装包（-py311 / -py313）由本地构建后附上。" \
-            --target "$GITHUB_SHA"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

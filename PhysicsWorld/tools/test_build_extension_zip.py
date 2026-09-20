@@ -140,6 +140,21 @@ def main() -> int:
         else:
             failures += not check("缺 omninode_registration.py 会被拒绝", False)
 
+        # 版本戳：只改包内清单，不动仓库文件
+        stamped_path = repo / "_dist" / "stamped.zip"
+        pack.build(repo, stamped_path, abi=None, source_only=True, version="20260920-051030")
+        with zipfile.ZipFile(stamped_path) as zf:
+            inside = json.loads(zf.read("extension.json").decode("utf-8"))
+        source_manifest = json.loads(
+            (repo / "extension.json").read_text(encoding="utf-8")
+        )
+        failures += not check(
+            "--version 只写入包内清单",
+            inside.get("version") == "20260920-051030"
+            and source_manifest.get("version") == "0.0.0",
+            f"inside={inside.get('version')} source={source_manifest.get('version')}",
+        )
+
     print()
     if failures:
         print(f"{failures} 项失败")

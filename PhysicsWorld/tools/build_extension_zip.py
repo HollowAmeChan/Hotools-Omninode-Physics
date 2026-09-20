@@ -16,6 +16,8 @@
 选项：
     --abi {py311,py313}   只打包该 Python ABI 的原生运行时；省略则两个都打（若存在）
     --source-only         不包含 native/runtime/<abi>/ 下的 pyd（纯源码包）
+    --version VERSION     把版本号写进包内清单（只影响 ZIP 内容，不改仓库里的
+                          extension.json）。CI 用时间戳版本戳，与主仓发布线一致。
     --repo-root PATH      仓库根，默认脚本所在目录的上一级
 """
 
@@ -103,25 +105,39 @@ def build(
     *,
     abi: str | None,
     source_only: bool,
+    version: str | None = None,
 ) -> tuple[int, int]:
     manifest = load_manifest(repo_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.unlink(missing_ok=True)
+
+    # 版本戳只作用于包内清单副本，仓库里的 extension.json 保持开发版本号。
+    stamped_manifest: bytes | None = None
+    if version:
+        stamped = dict(manifest)
+        stamped["version"] = version
+        stamped_manifest = (
+            json.dumps(stamped, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
 
     members: list[str] = []
     with zipfile.ZipFile(
         output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
     ) as archive:
         for source, relative in iter_files(repo_root, abi, source_only, output):
-            # 清单里的版本号写进包名无关紧要，保持原样即可。
-            archive.write(source, relative.as_posix())
-            members.append(relative.as_posix())
+            name = relative.as_posix()
+            if stamped_manifest is not None and name == MANIFEST_FILENAME:
+                archive.writestr(name, stamped_manifest)
+            else:
+                archive.write(source, name)
+            members.append(name)
 
     validate_members(members, abi)
     size_mib = output.stat().st_size / (1024 * 1024)
     print(
         f"Built {output} ({size_mib:.2f} MiB, {len(members)} files, "
         f"identifier={manifest['identifier']}, "
+        f"version={version or manifest.get('version') or '?'}, "
         f"abi={abi or 'none'}{', source-only' if source_only else ''})"
     )
     return len(members), int(size_mib * 1024)
@@ -135,6 +151,11 @@ def parse_args() -> argparse.Namespace:
         "--source-only",
         action="store_true",
         help="不包含 native/runtime/<abi>/ 下的 pyd",
+    )
+    parser.add_argument(
+        "--version",
+        default=None,
+        help="写进包内清单的版本号（不改仓库文件）；省略则用仓库清单里的版本",
     )
     parser.add_argument(
         "--repo-root",
@@ -155,6 +176,7 @@ def main() -> int:
         args.output.resolve(),
         abi=args.abi,
         source_only=args.source_only,
+        version=args.version,
     )
     return 0
 

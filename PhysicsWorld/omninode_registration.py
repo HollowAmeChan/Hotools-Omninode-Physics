@@ -6,6 +6,8 @@ import re
 import sys
 from pathlib import Path
 
+# 扩展以规范包名 HoTools.OmniNode.PhysicsWorld 加载（与物理位置无关），
+# 因此这里维持原来的相对层级。
 from .. import FunctionNodeCore
 from ..OmniNodeRegister import (
     OmniNodeCategorySpec,

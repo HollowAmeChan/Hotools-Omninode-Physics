@@ -11,7 +11,7 @@
 - Native 回归：`_native/tests/test_jolt_rigid_native.py`
 - 三层语义测试：`OmniNode/PhysicsWorld/rigid/test/`
 - 测试策略：`OmniNode/PhysicsWorld/rigid/docs/JOLT_TEST_STRATEGY.md`
-- 产品路线：`OmniNode/doc/JOLT_PHYSICS_BACKGROUND_ANALYSIS.md`
+- 产品路线：`docs/JOLT_PHYSICS_BACKGROUND_ANALYSIS.md`
 - 固定 Jolt 版本：`5.2.0`
 
 Jolt 源码优先来自 `_native/extern/JoltPhysics`，否则由 FetchContent 放入 `_native/.fetch-cache` / build 依赖目录。生成目录不是永久修改源。

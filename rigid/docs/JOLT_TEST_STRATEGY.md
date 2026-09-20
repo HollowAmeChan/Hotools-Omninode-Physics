@@ -491,6 +491,6 @@ python OmniNode\PhysicsWorld\rigid\test\run_native_semantics.py `
 - 本地 Jolt v5.2.0：`_native/build/vs2022-py311/_deps/joltphysics-src`
 - Jolt determinism：`Docs/Architecture.md` 的 `Deterministic Simulation`
 - Jolt 官方测试：`UnitTests/Physics/*ConstraintTests.cpp`、`SensorTests.cpp`、`MotionQualityLinearCastTests.cpp`、`PhysicsDeterminismTests.cpp`
-- HoTools 物理流程：`OmniNode/doc/PHYSICS_SIMULATION_PIPELINE_CONTRACT.md`
-- HoTools Jolt 能力分析：`OmniNode/doc/JOLT_PHYSICS_BACKGROUND_ANALYSIS.md`
+- HoTools 物理流程：`docs/PHYSICS_SIMULATION_PIPELINE_CONTRACT.md`
+- HoTools Jolt 能力分析：`docs/JOLT_PHYSICS_BACKGROUND_ANALYSIS.md`
 - HoTools 约束语义：`CONSTRAINT_REFERENCE.md`

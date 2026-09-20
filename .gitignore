@@ -1,9 +1,11 @@
-# 原生构建产物与依赖缓存：由本仓库的 native/build.bat 生成，不进版本库。
-native/runtime/
-native/build/
-native/.fetch-cache/
-native/extern/JoltPhysics/
-native/extern/nanobind/
+# 本仓库的包目录是 PhysicsWorld/，因此忽略规则都相对它书写。
+
+# 原生构建产物与依赖缓存：由 PhysicsWorld/native/build.bat 生成，不进版本库。
+PhysicsWorld/native/runtime/
+PhysicsWorld/native/build/
+PhysicsWorld/native/.fetch-cache/
+PhysicsWorld/native/extern/JoltPhysics/
+PhysicsWorld/native/extern/nanobind/
 
 # Python 缓存
 __pycache__/
@@ -15,21 +17,20 @@ __pycache__/
 .coverage
 junit*.xml
 
-# 测试工程与备份：默认忽略所有 .blend，仅保留断裂测试用的夹具工程
-# （原父仓 .gitignore 的例外规则，随物理世界一起迁入）。
+# 测试工程与备份：默认忽略所有 .blend，仅保留断裂测试用的夹具工程。
 *.blend*
-!rigid/test/assets/jolt_fracture_user_project.blend
+!PhysicsWorld/rigid/test/assets/jolt_fracture_user_project.blend
 *~
 
 # Unity oracle 的生成目录（工程源码保留，缓存与构建产物忽略）。
 # 实测 Library/ 约 960 MB，且内含绝对路径，必须排除。
-tools/mc2_unity_oracle/Library/
-tools/mc2_unity_oracle/Logs/
-tools/mc2_unity_oracle/Temp/
-tools/mc2_unity_oracle/obj/
-tools/mc2_unity_oracle/UserSettings/
-tools/mc2_unity_oracle/Build/
-tools/mc2_unity_oracle/Builds/
+PhysicsWorld/tools/mc2_unity_oracle/Library/
+PhysicsWorld/tools/mc2_unity_oracle/Logs/
+PhysicsWorld/tools/mc2_unity_oracle/Temp/
+PhysicsWorld/tools/mc2_unity_oracle/obj/
+PhysicsWorld/tools/mc2_unity_oracle/UserSettings/
+PhysicsWorld/tools/mc2_unity_oracle/Build/
+PhysicsWorld/tools/mc2_unity_oracle/Builds/
 
 # 备份与非关键产物
 *.bak

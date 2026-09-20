@@ -48,6 +48,38 @@ set HOTOOLS_FETCH_CACHE=<HoTools>\_native\.fetch-cache
 PhysicsWorld\native\build.bat 313
 ```
 
+### 构建目录必须落在插件树之外（实测踩坑）
+
+本仓库嵌在插件目录里，套上 `native\build\vs2022-pyXXX\...` 后路径长度会超过
+Windows 的 260 字符上限，MSBuild 会报：
+
+```
+FileTracker : error FTK1011: 未能创建新的文件跟踪日志文件 ... .tlog
+```
+
+因此**不要**把构建目录放在仓库内，改用插件树之外的短路径，例如：
+
+```bat
+cmake --preset vs2022-py311 -B D:\HoTools-build\ext-py311
+cmake --build D:\HoTools-build\ext-py311 --config Release --target hotools_physics --parallel
+```
+
+产物仍按 preset 写入 `PhysicsWorld/native/runtime/<abi>/`。
+
+## 打包发布
+
+```bat
+:: 只带目标 ABI 的安装包（父仓"安装扩展…"可直接用）
+python PhysicsWorld\tools\build_extension_zip.py --abi py313 --output _dist\ext-py313.zip
+python PhysicsWorld\tools\build_extension_zip.py --abi py311 --output _dist\ext-py311.zip
+
+:: 纯源码包（不含原生 pyd）
+python PhysicsWorld\tools\build_extension_zip.py --source-only --output _dist\ext-src.zip
+```
+
+对应关系：Blender 4.5 → py311 包；Blender 5.x → py313 包。`native/runtime/` 是构建
+产物、不入库，因此 CI 只自动发布源码包，带 pyd 的包需本地构建后附到同一 release。
+
 ## 与父仓的契约
 
 - 父仓 `OmniNode/OmniNodeRegister.py` 在三个搜索根下发现扩展：`OmniNode/`

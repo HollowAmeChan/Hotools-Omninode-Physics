@@ -36,3 +36,7 @@ PhysicsWorld/tools/mc2_unity_oracle/Builds/
 *.bak
 *.orig
 *.rej
+
+# 打包产物（扩展 ZIP），由 tools/build_extension_zip.py 生成
+_dist/
+

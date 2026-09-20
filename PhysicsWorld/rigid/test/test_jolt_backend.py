@@ -6,10 +6,14 @@ test_jolt_backend.py — hotools_jolt 后端模块基础功能测试
 import sys, os
 
 # hotools_jolt 编译产物路径
+# 布局：<插件>/OmniNode/extensions/<仓库>/PhysicsWorld/rigid/test/
+#   _PHYSICS_ROOT = .../<仓库>/PhysicsWorld
+#   _HOTOOLS_ROOT = .../<插件>            （父仓插件根，用于导入 HoTools.*）
 _TEST_ROOT = os.path.dirname(os.path.abspath(__file__))
-_HOTOOLS_ROOT = os.path.abspath(os.path.join(_TEST_ROOT, *(("..",) * 4)))
+_PHYSICS_ROOT = os.path.abspath(os.path.join(_TEST_ROOT, *(("..",) * 2)))
+_HOTOOLS_ROOT = os.path.abspath(os.path.join(_TEST_ROOT, *(("..",) * 5)))
 _PY_LIB      = "py313" if sys.version_info >= (3, 13) else "py311"
-_JOLT_LIB    = os.path.join(_HOTOOLS_ROOT, "_Lib", _PY_LIB, "HotoolsPackage")
+_JOLT_LIB    = os.path.join(_PHYSICS_ROOT, "native", "runtime", _PY_LIB)
 _ADDON_ROOT  = os.path.dirname(_HOTOOLS_ROOT)
 
 for p in [_JOLT_LIB, _HOTOOLS_ROOT, _ADDON_ROOT]:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PHYSICS_ROOT = ROOT.parent  # 扩展仓库根（owns mc2/, rigid/）
-PLUGIN_ROOT = ROOT.parents[2]
+PLUGIN_ROOT = ROOT.parents[3]
 # 物理原生源码现位于本扩展 native/src（mc2 子目录），枢纽文件为 hotools_physics.cpp
 NATIVE_SRC = ROOT / "src"
 PARENT_NATIVE_SRC = PLUGIN_ROOT / "_native" / "src"

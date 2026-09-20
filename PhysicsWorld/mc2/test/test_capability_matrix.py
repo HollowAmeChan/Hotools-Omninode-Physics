@@ -16,7 +16,7 @@ from ..runtime_parameters import (
 )
 
 
-BLENDER_TEST_ROOT = Path(__file__).resolve().parents[2] / "test"
+BLENDER_TEST_ROOT = Path(__file__).resolve().parents[3] / "test"
 MC2_ROOT = BLENDER_TEST_ROOT.parent / "mc2"
 
 

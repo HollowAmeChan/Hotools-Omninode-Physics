@@ -9,7 +9,7 @@ from pathlib import Path
 import mathutils
 
 
-MODULE_PATH = Path(__file__).parents[1] / "utils" / "debug_draw.py"
+MODULE_PATH = Path(__file__).parents[2] / "utils" / "debug_draw.py"
 SPEC = importlib.util.spec_from_file_location("hotools_debug_draw_utils_test", MODULE_PATH)
 debug_draw = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(debug_draw)

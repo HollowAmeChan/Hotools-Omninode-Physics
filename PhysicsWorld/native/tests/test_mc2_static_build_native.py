@@ -1,4 +1,4 @@
-"""Raw ABI tests for MC2 native static-build kernels."""
+﻿"""Raw ABI tests for MC2 native static-build kernels."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 PY_LIB = "py313" if sys.version_info >= (3, 13) else "py311"
 package_dir = Path(
-    os.environ.get("HOTOOLS_NATIVE_TEST_DIR", ROOT / "_Lib" / PY_LIB / "HotoolsPackage")
+    os.environ.get("HOTOOLS_NATIVE_TEST_DIR", ROOT / "runtime" / PY_LIB)
 )
 sys.path.insert(0, str(package_dir))
 

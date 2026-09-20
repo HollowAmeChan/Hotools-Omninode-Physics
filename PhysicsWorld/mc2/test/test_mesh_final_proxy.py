@@ -11,10 +11,10 @@ import sys
 import types
 
 
-HOTOOLS = r"C:\Users\hhh12\AppData\Roaming\Blender Foundation\Blender\4.5\scripts\addons\HoTools"
+HOTOOLS = os.path.abspath(os.path.join(os.path.dirname(__file__), *(("..",) * 5)))
 NODETREE = os.path.join(HOTOOLS, "OmniNode")
 FUNCTION = os.path.join(NODETREE, "Function")
-PW_ROOT = os.path.join(NODETREE, "PhysicsWorld")
+PW_ROOT = os.path.join(HOTOOLS, "OmniNode", "extensions", "Hotools-Omninode-Physics", "PhysicsWorld")
 FIXTURE_DIRECTORY = os.path.join(os.path.dirname(__file__), "fixtures", "tier_a")
 FLOAT_ABS_TOLERANCE = 1.0e-6
 FLOAT_REL_TOLERANCE = 1.0e-6
@@ -32,12 +32,14 @@ for package_name, package_path in (
     module = types.ModuleType(package_name)
     module.__path__ = [package_path]
     module.__package__ = package_name
-    sys.modules[package_name] = module
+    sys.modules.setdefault(package_name, module)
 
+# 父包的 __path__ 正确后，交给 import 机制解析 mc2.* 子包，
+# 这样相对导入（from ...names import ...）才能正常回溯。
+_physics_world = sys.modules["HoTools.OmniNode.PhysicsWorld"]
+_physics_world.mc2 = importlib.import_module("HoTools.OmniNode.PhysicsWorld.mc2")
 
-final_proxy = importlib.import_module(
-    "HoTools.OmniNode.PhysicsWorld.mc2.setups.mesh_cloth.final_proxy"
-)
+# 这样相对导入（from ...names import ...）才能正常回溯。
 
 
 def _fixtures():

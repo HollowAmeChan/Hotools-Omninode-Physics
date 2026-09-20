@@ -13,11 +13,9 @@ sys.path.insert(0, os.environ.get("HOTOOLS_NATIVE_TEST_DIR", str(ROOT / "runtime
 import hotools_physics  # noqa: E402
 
 
-# fixture 属于物理世界的 mc2 测试资产，随 Python 包一起放在 PhysicsWorld/mc2/test/ 下。
+# fixture 属于物理世界的 mc2 测试资产，随 Python 包一起放在 PhysicsWorld/mc2/test/ 下。"
 FIXTURE = (
-    ROOT.parents[2]
-    / "OmniNode"
-    / "PhysicsWorld"
+    ROOT.parent
     / "mc2"
     / "test"
     / "fixtures"
